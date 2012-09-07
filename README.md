@@ -2,6 +2,8 @@ A 4chan API client for Go. Supports the preliminary version of the API.
 
 [Documentation courtesy of GoPkgDoc.](http://go.pkgdoc.org/github.com/moshee/go-4chan-api)
 
+Pull requests welcome.
+
 #### To do
 
 - Proper SSL handling
