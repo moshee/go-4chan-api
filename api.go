@@ -391,3 +391,45 @@ func (self *Thread) CustomSpoilerURL(id int, ssl bool) string {
 	}
 	return fmt.Sprintf("%s://static.4chan.org/image/spoiler-%s%d.png", prefix, self.Board, id)
 }
+
+// Board represents a board as represented on /boards.json
+type Board struct {
+	Board string `json:"board"`
+	Title string `json:"title"`
+}
+
+func GetBoards(ssl bool) ([]Board, error) {
+	var b struct{
+		Boards []Board `json:"boards"`
+	}
+	url := "http"
+	if ssl {
+		url += "s"
+	}
+	url += "://api.4chan.org/boards.json"
+
+	if cooldown != nil {
+		<-cooldown
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	cooldown = time.After(1 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = json.Unmarshal(data, &b); err != nil {
+		return nil, err
+	}
+	return b.Boards, nil
+}
