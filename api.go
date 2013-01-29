@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// Only make one request per second
 var (
 	// Whether or not to use HTTPS for requests.
 	SSL bool = false
@@ -407,6 +406,7 @@ type Board struct {
 	Title string `json:"title"`
 }
 
+// Board names/descriptions will be cached here after a call to LookupBoard or GetBoards
 var Boards []Board
 
 func LookupBoard(name string) Board {

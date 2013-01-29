@@ -4,6 +4,7 @@ A 4chan API client for Go. Supports:
 	* Thread index
 	* Board list
 	* Board catalog
+- HTTPS
 - Rate limiting
 - `If-Modified-Since`
 
@@ -13,7 +14,6 @@ Pull requests welcome.
 
 #### To do
 
-- Proper SSL handling
 - Test the 1 second request cooldown
 - More useful `Thread` and `*Post` methods
 - Update & add more tests
