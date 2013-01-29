@@ -3,30 +3,49 @@ package api
 import (
 	"os"
 	"testing"
+	"fmt"
 )
 
-func TestUnmarshal(t *testing.T) {
-	try := func(err error) {
+func maketry(t *testing.T) func(error) {
+	return func(err error) {
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+}
 
-	assert := func(expr bool, desc string) {
+func makeassert(t *testing.T) func(bool, string) {
+	return func(expr bool, desc string) {
 		if !expr {
 			t.Fatal("Failed:", desc)
 		}
 	}
+}
+
+func TestParseThread(t *testing.T) {
+	try := maketry(t)
+	assert := makeassert(t)
 
 	file, err := os.Open("example.json")
 	try(err)
 	defer file.Close()
 
-	thread, err := ParseReader(file)
+	thread, err := ParseThread(file, "ck")
 	try(err)
 
-	assert(thread.OP().Name == "Anonymous", "OP's name is Anonymous")
-	assert(thread.Id() == 3856791, "Thread id is 3856791")
-	assert(thread.OP().File != nil, "OP post has a file")
-	assert(len(thread) == 38, "Thread has 38 posts")
+	fmt.Println(thread.Posts[0])
+	assert(thread.OP.Name == "Anonymous", "OP's name should be Anonymous")
+	assert(thread.Id() == 3856791, "Thread id should be 3856791")
+	assert(thread.OP.File != nil, "OP post should have a file")
+	assert(len(thread.Posts) == 38, "Thread should have 38 posts")
+}
+
+func TestGetIndex(t *testing.T) {
+	try := maketry(t)
+	assert := makeassert(t)
+
+	threads, err := GetIndex("a", 0)
+	try(err)
+	fmt.Println(threads[0].OP)
+	assert(len(threads) > 0, "Threads should exist")
 }

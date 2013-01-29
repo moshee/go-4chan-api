@@ -4,13 +4,58 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 )
 
-// Direct mapping from the API's JSON to a Go type. Only use if you really want to.
-type JsonPost struct {
+// Only make one request per second
+var (
+	// Whether or not to use HTTPS for requests.
+	SSL bool = false
+	// Cooldown time for updating threads using (*Thread).Update().
+	// If it is set to less than 10 seconds, it will be re-set to 10 seconds
+	// before being used.
+	UpdateCooldown time.Duration = 15 * time.Second
+	cooldown       <-chan time.Time
+)
+
+func get(path string, modify func(*http.Request) error) (*http.Response, error) {
+	if SSL {
+		path = "https://api.4chan.org" + path
+	} else {
+		path = "http://api.4chan.org" + path
+	}
+	if cooldown != nil {
+		<-cooldown
+	}
+	req, err := http.NewRequest("GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if modify != nil {
+		err = modify(req)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	cooldown = time.After(1 * time.Second)
+	return resp, err
+}
+
+func get_decode(path string, dest interface{}, modify func(*http.Request) error) error {
+	resp, err := get(path, modify)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return json.NewDecoder(resp.Body).Decode(dest)
+}
+
+// Direct mapping from the API's JSON to a Go type.
+type jsonPost struct {
 	No            int64  `json:"no"`             // Post number         1-9999999999999
 	Resto         int64  `json:"resto"`          // Reply to            0 (is thread), 1-999999999999
 	Sticky        int    `json:"sticky"`         // Stickied thread?    0 (no), 1 (yes)
@@ -84,6 +129,15 @@ type Post struct {
 	File *File
 }
 
+func (self *Post) String() (s string) {
+	s += fmt.Sprintf("#%d %s%s on %s:\n", self.Id, self.Name, self.Trip, self.Time.Format(time.RFC822))
+	if self.File != nil {
+		s += self.File.String()
+	}
+	s += self.Comment
+	return
+}
+
 // File represents an uploaded image.
 type File struct {
 	Id          int64  // Id is what 4chan renames images to (UNIX + microtime, e.g. 1346971121077)
@@ -103,22 +157,13 @@ func (self *File) String() string {
 	return fmt.Sprintf("File: %s%s (%dx%d, %d bytes, md5 %x)\n", self.Name, self.Ext, self.Width, self.Height, self.Size, self.MD5)
 }
 
-func (self *Post) String() (s string) {
-	s += fmt.Sprintf("#%d %s%s on %s:\n", self.Id, self.Name, self.Trip, self.Time.Format(time.RFC822))
-	if self.File != nil {
-		s += self.File.String()
-	}
-	s += self.Comment
-	return
-}
-
 // Return the URL of the post's country flag icon
-func (self *Post) CountryFlagURL(ssl bool) string {
+func (self *Post) CountryFlagURL() string {
 	if self.Country == "" {
 		return ""
 	}
 	prefix := "http"
-	if ssl {
+	if SSL {
 		prefix += "s"
 	}
 	// lol /pol/
@@ -133,47 +178,23 @@ type Thread struct {
 	Posts []*Post
 	OP    *Post
 	Board string // without slashes ex. "g" or "ic"
-	SSL   bool
 
 	date_recieved time.Time
+	cooldown      <-chan time.Time
 }
 
-// Only make one request per second
-var cooldown <-chan time.Time
-
 // Get an index of threads from the given board and page.
-func GetIndex(board string, page int, ssl bool) ([]*Thread, error) {
-	url := "http"
-	if ssl {
-		url += "s"
-	}
-	url += fmt.Sprintf("://api.4chan.org/%s/%d.json", board, page)
-
-	if cooldown != nil {
-		<-cooldown
-	}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	cooldown = time.After(1 * time.Second)
+func GetIndex(board string, page int) ([]*Thread, error) {
+	resp, err := get(fmt.Sprintf("/%s/%d.json", board, page), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	threads, err := ParseIndex(data, board)
+	threads, err := ParseIndex(resp.Body, board)
 	now := time.Now()
 	for _, t := range threads {
 		t.date_recieved = now
-		t.SSL = ssl
 	}
 	return threads, err
 }
@@ -181,65 +202,41 @@ func GetIndex(board string, page int, ssl bool) ([]*Thread, error) {
 // Request a thread from the API. board is just the board name, without the
 // surrounding slashes. If a thread is being updated, use an existing thread's
 // Update() method if possible because that uses If-Modified-Since
-func GetThread(board string, thread_id int64, use_ssl bool) (*Thread, error) {
-	return get_thread(board, thread_id, use_ssl, time.Unix(0, 0))
+func GetThread(board string, thread_id int64) (*Thread, error) {
+	return get_thread(board, thread_id, time.Unix(0, 0))
 }
 
-func get_thread(board string, thread_id int64, use_ssl bool, stale_time time.Time) (*Thread, error) {
-	var url string
-	if use_ssl {
-		url = fmt.Sprintf("https://api.4chan.org/%s/res/%d.json", board, thread_id)
-	} else {
-		url = fmt.Sprintf("http://api.4chan.org/%s/res/%d.json", board, thread_id)
-	}
-
-	if cooldown != nil {
-		<-cooldown
-	}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	if stale_time.Unix() != 0 {
-		req.Header.Add("If-Modified-Since", stale_time.UTC().Format(time.RFC1123))
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	cooldown = time.After(1 * time.Second)
+func get_thread(board string, thread_id int64, stale_time time.Time) (*Thread, error) {
+	resp, err := get(fmt.Sprintf("/%s/res/%d.json", board, thread_id), func(req *http.Request) error {
+		if stale_time.Unix() != 0 {
+			req.Header.Add("If-Modified-Since", stale_time.UTC().Format(time.RFC1123))
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	thread, err := Parse(data, board)
-	thread.SSL = use_ssl
+	thread, err := ParseThread(resp.Body, board)
 	thread.date_recieved = time.Now()
 
 	return thread, err
 }
 
 // Convert a JSON response for multiple threads into a native Go data structure
-func ParseIndex(data []byte, board string) ([]*Thread, error) {
-	if len(data) == 0 {
-		return nil, fmt.Errorf("ParseIndex: No input to process")
-	}
-
+func ParseIndex(r io.Reader, board string) ([]*Thread, error) {
 	var t struct {
 		Threads []struct {
-			Posts []*JsonPost `json:"posts"`
+			Posts []*jsonPost `json:"posts"`
 		} `json:"threads"`
 	}
 
-	if err := json.Unmarshal(data, &t); err != nil {
+	if err := json.NewDecoder(r).Decode(&t); err != nil {
 		return nil, err
 	}
 
-	threads := make([]*Thread, 10)
+	threads := make([]*Thread, len(t.Threads))
 	for i, json_thread := range t.Threads {
 		thread := &Thread{Posts: make([]*Post, len(t.Threads[i].Posts)), Board: board}
 		for k, v := range json_thread.Posts {
@@ -248,6 +245,10 @@ func ParseIndex(data []byte, board string) ([]*Thread, error) {
 				thread.OP = thread.Posts[k]
 			}
 		}
+		// TODO: fix this up
+		if thread.OP == nil {
+			thread.OP = thread.Posts[0]
+		}
 		threads[i] = thread
 	}
 
@@ -255,16 +256,12 @@ func ParseIndex(data []byte, board string) ([]*Thread, error) {
 }
 
 // Convert a JSON response for one thread into a native Go data structure
-func Parse(data []byte, board string) (*Thread, error) {
-	if len(data) == 0 {
-		return nil, fmt.Errorf("Parse: No input to process")
-	}
-
+func ParseThread(r io.Reader, board string) (*Thread, error) {
 	var t struct {
-		Posts []*JsonPost `json:"posts"`
+		Posts []*jsonPost `json:"posts"`
 	}
 
-	if err := json.Unmarshal(data, &t); err != nil {
+	if err := json.NewDecoder(r).Decode(&t); err != nil {
 		return nil, err
 	}
 
@@ -275,11 +272,15 @@ func Parse(data []byte, board string) (*Thread, error) {
 			thread.OP = thread.Posts[k]
 		}
 	}
+	// TODO: fix this up
+	if thread.OP == nil {
+		thread.OP = thread.Posts[0]
+	}
 
 	return thread, nil
 }
 
-func json_to_native(v *JsonPost, thread *Thread) *Post {
+func json_to_native(v *jsonPost, thread *Thread) *Post {
 	p := &Post{
 		Id:             v.No,
 		sticky:         v.Sticky == 1,
@@ -323,12 +324,20 @@ func json_to_native(v *JsonPost, thread *Thread) *Post {
 
 // Update an existing thread in-place.
 func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
+	if self.cooldown != nil {
+		<-self.cooldown
+	}
 	var thread *Thread
-	thread, err = get_thread(self.Board, self.Id(), self.SSL, self.date_recieved)
+	thread, err = get_thread(self.Board, self.Id(), self.date_recieved)
+	if UpdateCooldown < 10*time.Second {
+		UpdateCooldown = 10 * time.Second
+	}
+	self.cooldown = time.After(UpdateCooldown)
 	if err != nil {
 		return 0, 0, err
 	}
 	var a, b int
+	// traverse both threads in parallel to check for deleted/appended posts
 	for a, b = 0, 0; a < len(self.Posts); a, b = a+1, b+1 {
 		if self.Posts[a].Id == thread.Posts[b].Id {
 			continue
@@ -398,38 +407,70 @@ type Board struct {
 	Title string `json:"title"`
 }
 
-func GetBoards(ssl bool) ([]Board, error) {
-	var b struct{
+var Boards []Board
+
+func LookupBoard(name string) Board {
+	if Boards == nil {
+		_, err := GetBoards()
+		if err != nil {
+			return Board{}
+		}
+	}
+	for _, b := range Boards {
+		if name == b.Board {
+			return b
+		}
+	}
+	return Board{}
+}
+
+// Get the list of boards.
+func GetBoards() ([]Board, error) {
+	var b struct {
 		Boards []Board `json:"boards"`
 	}
-	url := "http"
-	if ssl {
-		url += "s"
-	}
-	url += "://api.4chan.org/boards.json"
-
-	if cooldown != nil {
-		<-cooldown
-	}
-	req, err := http.NewRequest("GET", url, nil)
+	err := get_decode("/boards.json", &b, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := http.DefaultClient.Do(req)
-	cooldown = time.After(1 * time.Second)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = json.Unmarshal(data, &b); err != nil {
-		return nil, err
-	}
+	Boards = b.Boards
 	return b.Boards, nil
+}
+
+type Catalog []struct {
+	Page    int
+	Threads []*Thread
+}
+
+type catalog []struct {
+	Page    int         `json:"page"`
+	Threads []*jsonPost `json:"threads"`
+}
+
+// Get a board's catalog.
+func GetCatalog(board string) (Catalog, error) {
+	if len(board) == 0 {
+		return nil, fmt.Errorf("api: GetCatalog: No board name given")
+	}
+	var c catalog
+	err := get_decode(fmt.Sprintf("/%s/catalog.json", board), c, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	cat := make(Catalog, len(c))
+	for i, page := range c {
+		extracted := struct {
+			Page    int
+			Threads []*Thread
+		}{page.Page, make([]*Thread, len(page.Threads))}
+		for j, post := range page.Threads {
+			thread := &Thread{Posts: make([]*Post, 1), Board: board}
+			post := json_to_native(post, thread)
+			thread.Posts[0] = post
+			extracted.Threads[j] = thread
+		}
+		cat[i] = extracted
+	}
+	return cat, nil
 }

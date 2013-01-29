@@ -1,6 +1,13 @@
-A 4chan API client for Go. Supports revision 26 (26 Nov 2012) of the API.
+A 4chan API client for Go. Supports:
+- API revision 23 (4 Jan 2013)
+	* Single thread
+	* Thread index
+	* Board list
+	* Board catalog
+- Rate limiting
+- `If-Modified-Since`
 
-[Documentation courtesy of GoPkgDoc.](http://go.pkgdoc.org/github.com/moshee/go-4chan-api)
+[Examples and docs on GoDoc.](http://godoc.org/github.com/moshee/go-4chan-api)
 
 Pull requests welcome.
 
