@@ -198,6 +198,26 @@ func GetIndex(board string, page int) ([]*Thread, error) {
 	return threads, err
 }
 
+func GetThreads(board string) ([][]int64, error) {
+	p := make([]struct {
+		Page    int `json:"page"`
+		Threads []struct {
+			No int64 `json:"no"`
+		} `json:"threads"`
+	}, 0, 10)
+	if err := get_decode(fmt.Sprintf("/%s/threads.json", board), &p, nil); err != nil {
+		return nil, err
+	}
+	n := make([][]int64, len(p))
+	for _, page := range p {
+		n[page.Page] = make([]int64, len(page.Threads))
+		for j, thread := range page.Threads {
+			n[page.Page][j] = thread.No
+		}
+	}
+	return n, nil
+}
+
 // Request a thread from the API. board is just the board name, without the
 // surrounding slashes. If a thread is being updated, use an existing thread's
 // Update() method if possible because that uses If-Modified-Since

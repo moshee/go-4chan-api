@@ -49,3 +49,16 @@ func TestGetIndex(t *testing.T) {
 	fmt.Println(threads[0].OP)
 	assert(len(threads) > 0, "Threads should exist")
 }
+
+func TestGetThreads(t *testing.T) {
+	try := maketry(t)
+	n, err := GetThreads("a")
+	try(err)
+	for _, q := range n {
+		for _, p := range q {
+			if p == 0 {
+				t.Fatal("There are #0 posts")
+			}
+		}
+	}
+}
