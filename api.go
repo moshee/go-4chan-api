@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -137,6 +138,40 @@ func (self *Post) String() (s string) {
 	return
 }
 
+// Constructs and returns the URL of the attached image. Returns the empty
+// string if there is none.
+func (self *Post) ImageURL() string {
+	file := self.File
+	if file == nil {
+		return ""
+	}
+	var proto string
+	if SSL {
+		proto = "https://"
+	} else {
+		proto = "http://"
+	}
+	return fmt.Sprintf("%simages.4chan.org/%s/src/%d%s",
+		proto, self.Thread.Board, file.Id, file.Ext)
+}
+
+// Constructs and returns the thumbnail URL of the attached image. Returns the
+// empty string if there is none.
+func (self *Post) ThumbURL() string {
+	file := self.File
+	if file == nil {
+		return ""
+	}
+	var proto string
+	if SSL {
+		proto = "https://"
+	} else {
+		proto = "http://"
+	}
+	return fmt.Sprintf("%s%d.thumbs.4chan.org/%s/thumb/%ds%s",
+		proto, rand.Intn(3), self.Thread.Board, file.Id, file.Ext)
+}
+
 // File represents an uploaded image.
 type File struct {
 	Id          int64  // Id is what 4chan renames images to (UNIX + microtime, e.g. 1346971121077)
@@ -153,7 +188,8 @@ type File struct {
 }
 
 func (self *File) String() string {
-	return fmt.Sprintf("File: %s%s (%dx%d, %d bytes, md5 %x)\n", self.Name, self.Ext, self.Width, self.Height, self.Size, self.MD5)
+	return fmt.Sprintf("File: %s%s (%dx%d, %d bytes, md5 %x)\n",
+		self.Name, self.Ext, self.Width, self.Height, self.Size, self.MD5)
 }
 
 // Return the URL of the post's country flag icon

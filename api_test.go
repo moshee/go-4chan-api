@@ -2,8 +2,8 @@ package api
 
 import (
 	"os"
+	"regexp"
 	"testing"
-	"fmt"
 )
 
 func maketry(t *testing.T) func(error) {
@@ -33,11 +33,14 @@ func TestParseThread(t *testing.T) {
 	thread, err := ParseThread(file, "ck")
 	try(err)
 
-	fmt.Println(thread.Posts[0])
 	assert(thread.OP.Name == "Anonymous", "OP's name should be Anonymous")
 	assert(thread.Id() == 3856791, "Thread id should be 3856791")
 	assert(thread.OP.File != nil, "OP post should have a file")
 	assert(len(thread.Posts) == 38, "Thread should have 38 posts")
+	assert(thread.OP.ImageURL() == "http://images.4chan.org/ck/src/1346968817055.jpg", "Image URL should be 'http://images.4chan.org/ck/src/1346968817055.jpg'")
+	thumbURL := thread.OP.ThumbURL()
+	matched, _ := regexp.MatchString(`http://\d\.thumbs\.4chan\.org/ck/thumb/1346968817055s\.jpg`, thumbURL)
+	assert(matched, "Thumb URL should match 'http://\\d.thumbs.4chan.org/ck/thumb/1346968817055s.jpg' (got '"+thumbURL+"')")
 }
 
 func TestGetIndex(t *testing.T) {
@@ -46,7 +49,6 @@ func TestGetIndex(t *testing.T) {
 
 	threads, err := GetIndex("a", 0)
 	try(err)
-	fmt.Println(threads[0].OP)
 	assert(len(threads) > 0, "Threads should exist")
 }
 
