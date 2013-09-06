@@ -92,17 +92,18 @@ type jsonPost struct {
 	CapcodeReplies []struct {
 		Kind  string
 		Count int
-	}                  `json:"capcode_replies"`
+	} `json:"capcode_replies"`
 	LastModified int64 `json:"last_modified"`
 }
 
 // A Post represents all of the attributes of a 4chan post, organized in a more directly usable fashion.
 type Post struct {
 	// Post info
-	Id      int64
-	Thread  *Thread
-	Time    time.Time
-	Subject string
+	Id           int64
+	Thread       *Thread
+	Time         time.Time
+	Subject      string
+	LastModified int64
 
 	// These are only present in an OP post. They are exposed through their
 	// corresponding Thread getter methods.
@@ -132,6 +133,12 @@ type Post struct {
 
 	// File info if any, otherwise nil
 	File *File
+
+	// only when they do this on /q/
+	CapcodeReplies []struct {
+		Kind  string
+		Count int
+	}
 }
 
 func (self *Post) String() (s string) {
@@ -363,6 +370,8 @@ func json_to_native(v *jsonPost, thread *Thread) *Post {
 		bump_limit:     v.BumpLimit == 1,
 		image_limit:    v.ImageLimit == 1,
 		Thread:         thread,
+		CapcodeReplies: v.CapcodeReplies,
+		LastModified:   v.LastModified,
 	}
 	if len(v.FileName) > 0 {
 		p.File = &File{
