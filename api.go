@@ -56,44 +56,41 @@ func get_decode(path string, dest interface{}, modify func(*http.Request) error)
 
 // Direct mapping from the API's JSON to a Go type.
 type jsonPost struct {
-	No             int64  `json:"no"`             // Post number         1-9999999999999
-	Resto          int64  `json:"resto"`          // Reply to            0 (is thread), 1-999999999999
-	Sticky         int    `json:"sticky"`         // Stickied thread?    0 (no), 1 (yes)
-	Closed         int    `json:"closed"`         // Closed thread?      0 (no), 1 (yes)
-	Now            string `json:"now"`            // Date and time       MM\/DD\/YY(Day)HH:MM (:SS on some boards)
-	Time           int64  `json:"time"`           // UNIX timestamp      UNIX timestamp
-	Name           string `json:"name"`           // Name                text or empty
-	Trip           string `json:"trip"`           // Tripcode            text (format: !tripcode!!securetripcode)
-	Id             string `json:"id"`             // ID                  text (8 characters), Mod, Admin
-	Capcode        string `json:"capcode"`        // Capcode             none, mod, admin, admin_highlight, developer
-	Country        string `json:"country"`        // Country code        ISO 3166-1 alpha-2, XX (unknown)
-	CountryName    string `json:"country_name"`   // Country name        text
-	Email          string `json:"email"`          // Email               text or empty
-	Sub            string `json:"sub"`            // Subject             text or empty
-	Com            string `json:"com"`            // Comment             text (includes escaped HTML) or empty
-	Tim            int64  `json:"tim"`            // Renamed filename    UNIX timestamp + microseconds
-	FileName       string `json:"filename"`       // Original filename   text
-	Ext            string `json:"ext"`            // File extension      .jpg, .png, .gif, .pdf, .swf
-	Fsize          int    `json:"fsize"`          // File size           1-8388608
-	Md5            []byte `json:"md5"`            // File MD5            byte slice
-	Width          int    `json:"w"`              // Image width         1-10000
-	Height         int    `json:"h"`              // Image height        1-10000
-	TnW            int    `json:"tn_w"`           // Thumbnail width     1-250
-	TnH            int    `json:"tn_h"`           // Thumbnail height    1-250
-	FileDeleted    int    `json:"filedeleted"`    // File deleted?       0 (no), 1 (yes)
-	Spoiler        int    `json:"spoiler"`        // Spoiler image?      0 (no), 1 (yes)
-	CustomSpoiler  int    `json:"custom_spoiler"` // Custom spoilers?	1-99
-	OmittedPosts   int    `json:"omitted_posts"`  // # replies omitted	1-10000
-	OmittedImages  int    `json:"omitted_images"` // # images omitted	1-10000
-	Replies        int    `json:"replies"`        // total # of replies	0-99999
-	Images         int    `json:"images"`         // total # of images	0-99999
-	BumpLimit      int    `json:"bumplimit"`      // bump limit?			0 (no), 1 (yes)
-	ImageLimit     int    `json:"imagelimit"`     // image limit?		0 (no), 1 (yes)
-	CapcodeReplies []struct {
-		Kind  string
-		Count int
-	} `json:"capcode_replies"`
-	LastModified int64 `json:"last_modified"`
+	No             int64            `json:"no"`             // Post number         1-9999999999999
+	Resto          int64            `json:"resto"`          // Reply to            0 (is thread), 1-999999999999
+	Sticky         int              `json:"sticky"`         // Stickied thread?    0 (no), 1 (yes)
+	Closed         int              `json:"closed"`         // Closed thread?      0 (no), 1 (yes)
+	Now            string           `json:"now"`            // Date and time       MM\/DD\/YY(Day)HH:MM (:SS on some boards)
+	Time           int64            `json:"time"`           // UNIX timestamp      UNIX timestamp
+	Name           string           `json:"name"`           // Name                text or empty
+	Trip           string           `json:"trip"`           // Tripcode            text (format: !tripcode!!securetripcode)
+	Id             string           `json:"id"`             // ID                  text (8 characters), Mod, Admin
+	Capcode        string           `json:"capcode"`        // Capcode             none, mod, admin, admin_highlight, developer
+	Country        string           `json:"country"`        // Country code        ISO 3166-1 alpha-2, XX (unknown)
+	CountryName    string           `json:"country_name"`   // Country name        text
+	Email          string           `json:"email"`          // Email               text or empty
+	Sub            string           `json:"sub"`            // Subject             text or empty
+	Com            string           `json:"com"`            // Comment             text (includes escaped HTML) or empty
+	Tim            int64            `json:"tim"`            // Renamed filename    UNIX timestamp + microseconds
+	FileName       string           `json:"filename"`       // Original filename   text
+	Ext            string           `json:"ext"`            // File extension      .jpg, .png, .gif, .pdf, .swf
+	Fsize          int              `json:"fsize"`          // File size           1-8388608
+	Md5            []byte           `json:"md5"`            // File MD5            byte slice
+	Width          int              `json:"w"`              // Image width         1-10000
+	Height         int              `json:"h"`              // Image height        1-10000
+	TnW            int              `json:"tn_w"`           // Thumbnail width     1-250
+	TnH            int              `json:"tn_h"`           // Thumbnail height    1-250
+	FileDeleted    int              `json:"filedeleted"`    // File deleted?       0 (no), 1 (yes)
+	Spoiler        int              `json:"spoiler"`        // Spoiler image?      0 (no), 1 (yes)
+	CustomSpoiler  int              `json:"custom_spoiler"` // Custom spoilers?	1-99
+	OmittedPosts   int              `json:"omitted_posts"`  // # replies omitted	1-10000
+	OmittedImages  int              `json:"omitted_images"` // # images omitted	1-10000
+	Replies        int              `json:"replies"`        // total # of replies	0-99999
+	Images         int              `json:"images"`         // total # of images	0-99999
+	BumpLimit      int              `json:"bumplimit"`      // bump limit?			0 (no), 1 (yes)
+	ImageLimit     int              `json:"imagelimit"`     // image limit?		0 (no), 1 (yes)
+	CapcodeReplies map[string][]int `json:"capcode_replies"`
+	LastModified   int64            `json:"last_modified"`
 }
 
 // A Post represents all of the attributes of a 4chan post, organized in a more directly usable fashion.

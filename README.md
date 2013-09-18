@@ -1,5 +1,5 @@
 A 4chan API client for Go. Supports:
-- API revision 27 (2 September 2013)
+- API revision 28 (16 September 2013)
 	* Single thread
 	* Thread index
 	* Board list
@@ -8,6 +8,7 @@ A 4chan API client for Go. Supports:
 - HTTPS
 - Rate limiting
 - `If-Modified-Since`
+- In-place thread updating
 
 [Examples and docs on GoDoc.](http://godoc.org/github.com/moshee/go-4chan-api)
 
