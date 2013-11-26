@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
+	pathpkg "path"
 	"time"
 )
 
@@ -20,16 +20,27 @@ var (
 	cooldown       <-chan time.Time
 )
 
-func get(path string, modify func(*http.Request) error) (*http.Response, error) {
+const (
+	APIURL    = "a.4cdn.org"
+	ImageURL  = "i.4cdn.org"
+	ThumbURL  = "t.4cdn.org"
+	StaticURL = "s.4cdn.org"
+)
+
+func prefix() string {
 	if SSL {
-		path = "https://api.4chan.org" + path
+		return "https://"
 	} else {
-		path = "http://api.4chan.org" + path
+		return "http://"
 	}
+}
+
+func get(base, path string, modify func(*http.Request) error) (*http.Response, error) {
+	url := prefix() + pathpkg.Join(base, path)
 	if cooldown != nil {
 		<-cooldown
 	}
-	req, err := http.NewRequest("GET", path, nil)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +56,8 @@ func get(path string, modify func(*http.Request) error) (*http.Response, error) 
 	return resp, err
 }
 
-func get_decode(path string, dest interface{}, modify func(*http.Request) error) error {
-	resp, err := get(path, modify)
+func getDecode(base, path string, dest interface{}, modify func(*http.Request) error) error {
+	resp, err := get(base, path, modify)
 	if err != nil {
 		return err
 	}
@@ -132,10 +143,7 @@ type Post struct {
 	File *File
 
 	// only when they do this on /q/
-	CapcodeReplies []struct {
-		Kind  string
-		Count int
-	}
+	CapcodeReplies map[string][]int
 }
 
 func (self *Post) String() (s string) {
@@ -154,14 +162,8 @@ func (self *Post) ImageURL() string {
 	if file == nil {
 		return ""
 	}
-	var proto string
-	if SSL {
-		proto = "https://"
-	} else {
-		proto = "http://"
-	}
-	return fmt.Sprintf("%simages.4chan.org/%s/src/%d%s",
-		proto, self.Thread.Board, file.Id, file.Ext)
+	return fmt.Sprintf("%s%s/%s/src/%d%s",
+		prefix(), ImageURL, self.Thread.Board, file.Id, file.Ext)
 }
 
 // Constructs and returns the thumbnail URL of the attached image. Returns the
@@ -171,14 +173,8 @@ func (self *Post) ThumbURL() string {
 	if file == nil {
 		return ""
 	}
-	var proto string
-	if SSL {
-		proto = "https://"
-	} else {
-		proto = "http://"
-	}
-	return fmt.Sprintf("%s%d.thumbs.4chan.org/%s/thumb/%ds%s",
-		proto, rand.Intn(3), self.Thread.Board, file.Id, file.Ext)
+	return fmt.Sprintf("%s%s/%s/thumb/%ds%s",
+		prefix(), ThumbURL, self.Thread.Board, file.Id, file.Ext)
 }
 
 // File represents an uploaded image.
@@ -206,15 +202,11 @@ func (self *Post) CountryFlagURL() string {
 	if self.Country == "" {
 		return ""
 	}
-	prefix := "http"
-	if SSL {
-		prefix += "s"
-	}
 	// lol /pol/
 	if self.Thread.Board == "pol" {
-		return prefix + "://static.4chan.org/image/country/troll/" + self.Country + ".gif"
+		return fmt.Sprintf("%s://%s/image/country/troll/%s.gif", prefix(), StaticURL, self.Country)
 	}
-	return prefix + "://static.4chan.org/image/country/" + self.Country + ".gif"
+	return fmt.Sprintf("%s://%s/image/country/%s.gif", prefix(), StaticURL, self.Country)
 }
 
 // A Thread represents a thread of posts.
@@ -229,7 +221,7 @@ type Thread struct {
 
 // Get an index of threads from the given board and page.
 func GetIndex(board string, page int) ([]*Thread, error) {
-	resp, err := get(fmt.Sprintf("/%s/%d.json", board, page), nil)
+	resp, err := get(APIURL, fmt.Sprintf("/%s/%d.json", board, page), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +242,7 @@ func GetThreads(board string) ([][]int64, error) {
 			No int64 `json:"no"`
 		} `json:"threads"`
 	}, 0, 10)
-	if err := get_decode(fmt.Sprintf("/%s/threads.json", board), &p, nil); err != nil {
+	if err := getDecode(APIURL, fmt.Sprintf("/%s/threads.json", board), &p, nil); err != nil {
 		return nil, err
 	}
 	n := make([][]int64, len(p))
@@ -267,11 +259,11 @@ func GetThreads(board string) ([][]int64, error) {
 // surrounding slashes. If a thread is being updated, use an existing thread's
 // Update() method if possible because that uses If-Modified-Since
 func GetThread(board string, thread_id int64) (*Thread, error) {
-	return get_thread(board, thread_id, time.Unix(0, 0))
+	return getThread(board, thread_id, time.Unix(0, 0))
 }
 
-func get_thread(board string, thread_id int64, stale_time time.Time) (*Thread, error) {
-	resp, err := get(fmt.Sprintf("/%s/res/%d.json", board, thread_id), func(req *http.Request) error {
+func getThread(board string, thread_id int64, stale_time time.Time) (*Thread, error) {
+	resp, err := get(APIURL, fmt.Sprintf("/%s/res/%d.json", board, thread_id), func(req *http.Request) error {
 		if stale_time.Unix() != 0 {
 			req.Header.Add("If-Modified-Since", stale_time.UTC().Format(time.RFC1123))
 		}
@@ -394,7 +386,7 @@ func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
 		<-self.cooldown
 	}
 	var thread *Thread
-	thread, err = get_thread(self.Board, self.Id(), self.date_recieved)
+	thread, err = getThread(self.Board, self.Id(), self.date_recieved)
 	if UpdateCooldown < 10*time.Second {
 		UpdateCooldown = 10 * time.Second
 	}
@@ -456,15 +448,12 @@ func (self *Thread) CustomSpoiler() int {
 	return self.OP.custom_spoiler
 }
 
+// Return the URL of the custom spoiler image, or an empty string if none exists
 func (self *Thread) CustomSpoilerURL(id int, ssl bool) string {
 	if id > self.OP.custom_spoiler {
 		return ""
 	}
-	prefix := "http"
-	if ssl {
-		prefix += "s"
-	}
-	return fmt.Sprintf("%s://static.4chan.org/image/spoiler-%s%d.png", prefix, self.Board, id)
+	return fmt.Sprintf("%s://%s/image/spoiler-%s%d.png", prefix(), StaticURL, self.Board, id)
 }
 
 // Board represents a board as represented on /boards.json
@@ -476,19 +465,20 @@ type Board struct {
 // Board names/descriptions will be cached here after a call to LookupBoard or GetBoards
 var Boards []Board
 
-func LookupBoard(name string) Board {
+// Look up a Board by name.
+func LookupBoard(name string) (Board, error) {
 	if Boards == nil {
 		_, err := GetBoards()
 		if err != nil {
-			return Board{}
+			return Board{}, fmt.Errorf("Board '%s' not found: %v", name, err)
 		}
 	}
 	for _, b := range Boards {
 		if name == b.Board {
-			return b
+			return b, nil
 		}
 	}
-	return Board{}
+	return Board{}, fmt.Errorf("Board '%s' not found", name)
 }
 
 // Get the list of boards.
@@ -496,7 +486,7 @@ func GetBoards() ([]Board, error) {
 	var b struct {
 		Boards []Board `json:"boards"`
 	}
-	err := get_decode("/boards.json", &b, nil)
+	err := getDecode(APIURL, "/boards.json", &b, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -520,7 +510,7 @@ func GetCatalog(board string) (Catalog, error) {
 		return nil, fmt.Errorf("api: GetCatalog: No board name given")
 	}
 	var c catalog
-	err := get_decode(fmt.Sprintf("/%s/catalog.json", board), c, nil)
+	err := getDecode(APIURL, fmt.Sprintf("/%s/catalog.json", board), c, nil)
 	if err != nil {
 		return nil, err
 	}
