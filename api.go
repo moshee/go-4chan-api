@@ -155,29 +155,29 @@ func (self *Post) String() (s string) {
 	return
 }
 
-// Constructs and returns the URL of the attached image. Returns the empty
-// string if there is none.
+// ImageURL constructs and returns the URL of the attached image. Returns the
+// empty string if there is none.
 func (self *Post) ImageURL() string {
 	file := self.File
 	if file == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s%s/%s/src/%d%s",
+	return fmt.Sprintf("%s%s/%s/%d%s",
 		prefix(), ImageURL, self.Thread.Board, file.Id, file.Ext)
 }
 
-// Constructs and returns the thumbnail URL of the attached image. Returns the
-// empty string if there is none.
+// ThumbURL constructs and returns the thumbnail URL of the attached image.
+// Returns the empty string if there is none.
 func (self *Post) ThumbURL() string {
 	file := self.File
 	if file == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s%s/%s/thumb/%ds%s",
+	return fmt.Sprintf("%s%s/%s/%ds%s",
 		prefix(), ThumbURL, self.Thread.Board, file.Id, file.Ext)
 }
 
-// File represents an uploaded image.
+// A File represents an uploaded file's metadata.
 type File struct {
 	Id          int64  // Id is what 4chan renames images to (UNIX + microtime, e.g. 1346971121077)
 	Name        string // Original filename
@@ -197,7 +197,8 @@ func (self *File) String() string {
 		self.Name, self.Ext, self.Width, self.Height, self.Size, self.MD5)
 }
 
-// Return the URL of the post's country flag icon
+// CountryFlagURL returns the URL of the post's country flag icon, if enabled
+// on the board in question.
 func (self *Post) CountryFlagURL() string {
 	if self.Country == "" {
 		return ""
@@ -209,7 +210,7 @@ func (self *Post) CountryFlagURL() string {
 	return fmt.Sprintf("%s://%s/image/country/%s.gif", prefix(), StaticURL, self.Country)
 }
 
-// A Thread represents a thread of posts.
+// A Thread represents a thread of posts. It may or may not contain the actual replies.
 type Thread struct {
 	Posts []*Post
 	OP    *Post
@@ -219,7 +220,8 @@ type Thread struct {
 	cooldown      <-chan time.Time
 }
 
-// Get an index of threads from the given board and page.
+// GetIndex hits the API for an index of thread stubs from the given board and
+// page.
 func GetIndex(board string, page int) ([]*Thread, error) {
 	resp, err := get(APIURL, fmt.Sprintf("/%s/%d.json", board, page), nil)
 	if err != nil {
@@ -235,6 +237,8 @@ func GetIndex(board string, page int) ([]*Thread, error) {
 	return threads, err
 }
 
+// GetThreads hits the API for a list of the thread IDs of all the active
+// threads on a given board.
 func GetThreads(board string) ([][]int64, error) {
 	p := make([]struct {
 		Page    int `json:"page"`
@@ -255,17 +259,19 @@ func GetThreads(board string) ([][]int64, error) {
 	return n, nil
 }
 
-// Request a thread from the API. board is just the board name, without the
-// surrounding slashes. If a thread is being updated, use an existing thread's
-// Update() method if possible because that uses If-Modified-Since
+// GetThread hits the API for a single thread and all its replies. board is
+// just the board name, without the surrounding slashes. If a thread is being
+// updated, use an existing thread's Update() method if possible because that
+// uses If-Modified-Since in the request, which reduces unnecessary server
+// load.
 func GetThread(board string, thread_id int64) (*Thread, error) {
 	return getThread(board, thread_id, time.Unix(0, 0))
 }
 
 func getThread(board string, thread_id int64, stale_time time.Time) (*Thread, error) {
-	resp, err := get(APIURL, fmt.Sprintf("/%s/res/%d.json", board, thread_id), func(req *http.Request) error {
+	resp, err := get(APIURL, fmt.Sprintf("/%s/thread/%d.json", board, thread_id), func(req *http.Request) error {
 		if stale_time.Unix() != 0 {
-			req.Header.Add("If-Modified-Since", stale_time.UTC().Format(time.RFC1123))
+			req.Header.Add("If-Modified-Since", stale_time.UTC().Format(http.TimeFormat))
 		}
 		return nil
 	})
@@ -280,7 +286,8 @@ func getThread(board string, thread_id int64, stale_time time.Time) (*Thread, er
 	return thread, err
 }
 
-// Convert a JSON response for multiple threads into a native Go data structure
+// ParseIndex converts a JSON response for multiple threads into a native Go
+// data structure
 func ParseIndex(r io.Reader, board string) ([]*Thread, error) {
 	var t struct {
 		Threads []struct {
@@ -311,7 +318,8 @@ func ParseIndex(r io.Reader, board string) ([]*Thread, error) {
 	return threads, nil
 }
 
-// Convert a JSON response for one thread into a native Go data structure
+// ParseThread converts a JSON response for one thread into a native Go data
+// structure.
 func ParseThread(r io.Reader, board string) (*Thread, error) {
 	var t struct {
 		Posts []*jsonPost `json:"posts"`
@@ -409,6 +417,7 @@ func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
 	return
 }
 
+// Id returns the thread OP's post ID.
 func (self *Thread) Id() int64 {
 	return self.OP.Id
 }
@@ -420,35 +429,53 @@ func (self *Thread) String() (s string) {
 	return
 }
 
+// Replies returns the number of replies the thread OP has.
 func (self *Thread) Replies() int {
 	return self.OP.replies
 }
+
+// Images returns the number of images in the thread.
 func (self *Thread) Images() int {
 	return self.OP.images
 }
+
+// OmittedPosts returns the number of posts omitted in a thread list overview.
 func (self *Thread) OmittedPosts() int {
 	return self.OP.omitted_posts
 }
+
+// OmittedImages returns the number of image posts omitted in a thread list overview.
 func (self *Thread) OmittedImages() int {
 	return self.OP.omitted_images
 }
+
+// BumpLimit returns true if the thread is at its bump limit, or false otherwise.
 func (self *Thread) BumpLimit() bool {
 	return self.OP.bump_limit
 }
+
+// ImageLimit returns true if the thread can no longer accept image posts, or false otherwise.
 func (self *Thread) ImageLimit() bool {
 	return self.OP.image_limit
 }
+
+// Closed returns true if the thread is closed for replies, or false otherwise.
 func (self *Thread) Closed() bool {
 	return self.OP.closed
 }
+
+// Sticky returns true if the thread is stickied, or false otherwise.
 func (self *Thread) Sticky() bool {
 	return self.OP.sticky
 }
+
+// CustomSpoiler returns the ID of its custom spoiler image, if there is one.
 func (self *Thread) CustomSpoiler() int {
 	return self.OP.custom_spoiler
 }
 
-// Return the URL of the custom spoiler image, or an empty string if none exists
+// CustomSpoilerURL builds and returns the URL of the custom spoiler image, or
+// an empty string if none exists.
 func (self *Thread) CustomSpoilerURL(id int, ssl bool) string {
 	if id > self.OP.custom_spoiler {
 		return ""
@@ -456,7 +483,7 @@ func (self *Thread) CustomSpoilerURL(id int, ssl bool) string {
 	return fmt.Sprintf("%s://%s/image/spoiler-%s%d.png", prefix(), StaticURL, self.Board, id)
 }
 
-// Board represents a board as represented on /boards.json
+// A Board is the name and title of a single board.
 type Board struct {
 	Board string `json:"board"`
 	Title string `json:"title"`
@@ -465,7 +492,7 @@ type Board struct {
 // Board names/descriptions will be cached here after a call to LookupBoard or GetBoards
 var Boards []Board
 
-// Look up a Board by name.
+// LookupBoard returns the Board corresponding to the board name (without slashes)
 func LookupBoard(name string) (Board, error) {
 	if Boards == nil {
 		_, err := GetBoards()
@@ -494,6 +521,7 @@ func GetBoards() ([]Board, error) {
 	return b.Boards, nil
 }
 
+// A Catalog contains a list of (truncated) threads on each page of a board.
 type Catalog []struct {
 	Page    int
 	Threads []*Thread
@@ -504,7 +532,7 @@ type catalog []struct {
 	Threads []*jsonPost `json:"threads"`
 }
 
-// Get a board's catalog.
+// GetCatalog hits the API for a catalog listing of a board.
 func GetCatalog(board string) (Catalog, error) {
 	if len(board) == 0 {
 		return nil, fmt.Errorf("api: GetCatalog: No board name given")

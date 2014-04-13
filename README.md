@@ -1,6 +1,8 @@
-A 4chan API client for Go. Supports:
+A 4chan API client for Go.
 
-- API revision 30 (11 November 2013)
+Supports:
+
+- API revision 34 (2014-04-12)
 	* Single thread
 	* Thread index
 	* Board list
