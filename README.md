@@ -1,5 +1,7 @@
 A 4chan API client for Go.
 
+[![Build Status](https://travis-ci.org/moshee/go-4chan-api.svg?branch=master)](https://travis-ci.org/moshee/go-4chan-api)
+
 Supports:
 
 - API revision 34 (2014-04-12)
