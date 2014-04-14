@@ -30,9 +30,9 @@ func TestParseThread(t *testing.T) {
 	assert(t, thread.OP.File != nil, "OP post should have a file")
 	assert(t, len(thread.Posts) == 38, "Thread should have 38 posts")
 	imageURL := thread.OP.ImageURL()
-	assert(t, imageURL == "http://i.4cdn.org/ck/src/1346968817055.jpg", "Image URL should be 'http://i.4cdn.org/ck/src/1346968817055.jpg' (got '"+imageURL+"')")
+	assert(t, imageURL == "http://i.4cdn.org/ck/1346968817055.jpg", "Image URL should be 'http://i.4cdn.org/ck/1346968817055.jpg' (got '"+imageURL+"')")
 	thumbURL := thread.OP.ThumbURL()
-	assert(t, thumbURL == "http://t.4cdn.org/ck/thumb/1346968817055s.jpg", "Thumb URL should be 'http://t.4cdn.org/ck/thumb/1346968817055s.jpg' (got '"+thumbURL+"')")
+	assert(t, thumbURL == "http://t.4cdn.org/ck/1346968817055s.jpg", "Thumb URL should be 'http://t.4cdn.org/ck/1346968817055s.jpg' (got '"+thumbURL+"')")
 }
 
 func TestGetIndex(t *testing.T) {
