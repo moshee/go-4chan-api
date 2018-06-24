@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	pathpkg "path"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,7 @@ var (
 	// before being used.
 	UpdateCooldown time.Duration = 15 * time.Second
 	cooldown       <-chan time.Time
+	cooldownMutex  sync.Mutex
 )
 
 const (
@@ -37,6 +39,7 @@ func prefix() string {
 
 func get(base, path string, modify func(*http.Request) error) (*http.Response, error) {
 	url := prefix() + pathpkg.Join(base, path)
+	cooldownMutex.Lock()
 	if cooldown != nil {
 		<-cooldown
 	}
@@ -53,6 +56,7 @@ func get(base, path string, modify func(*http.Request) error) (*http.Response, e
 
 	resp, err := http.DefaultClient.Do(req)
 	cooldown = time.After(1 * time.Second)
+	cooldownMutex.Unlock()
 	return resp, err
 }
 
@@ -390,6 +394,7 @@ func json_to_native(v *jsonPost, thread *Thread) *Post {
 
 // Update an existing thread in-place.
 func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
+	cooldownMutex.Lock()
 	if self.cooldown != nil {
 		<-self.cooldown
 	}
@@ -399,6 +404,7 @@ func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
 		UpdateCooldown = 10 * time.Second
 	}
 	self.cooldown = time.After(UpdateCooldown)
+	cooldownMutex.Unlock()
 	if err != nil {
 		return 0, 0, err
 	}
