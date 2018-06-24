@@ -559,6 +559,9 @@ func GetCatalog(board string) (Catalog, error) {
 			post := json_to_native(post, thread)
 			thread.Posts[0] = post
 			extracted.Threads[j] = thread
+			if thread.OP == nil {
+				thread.OP = thread.Posts[0]
+			}
 		}
 		cat[i] = extracted
 	}
