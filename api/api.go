@@ -25,7 +25,6 @@ var (
 const (
 	APIURL    = "a.4cdn.org"
 	ImageURL  = "i.4cdn.org"
-	ThumbURL  = "t.4cdn.org"
 	StaticURL = "s.4cdn.org"
 )
 
@@ -178,7 +177,7 @@ func (self *Post) ThumbURL() string {
 		return ""
 	}
 	return fmt.Sprintf("%s%s/%s/%ds%s",
-		prefix(), ThumbURL, self.Thread.Board, file.Id, file.Ext)
+		prefix(), ImageURL, self.Thread.Board, file.Id, ".jpg")
 }
 
 // A File represents an uploaded file's metadata.
