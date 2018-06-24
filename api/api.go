@@ -543,7 +543,7 @@ func GetCatalog(board string) (Catalog, error) {
 		return nil, fmt.Errorf("api: GetCatalog: No board name given")
 	}
 	var c catalog
-	err := getDecode(APIURL, fmt.Sprintf("/%s/catalog.json", board), c, nil)
+	err := getDecode(APIURL, fmt.Sprintf("/%s/catalog.json", board), &c, nil)
 	if err != nil {
 		return nil, err
 	}
