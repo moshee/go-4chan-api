@@ -226,13 +226,17 @@ type Thread struct {
 // GetIndex hits the API for an index of thread stubs from the given board and
 // page.
 func GetIndex(board string, page int) ([]*Thread, error) {
-	resp, err := get(APIURL, fmt.Sprintf("/%s/%d.json", board, page), nil)
+	resp, err := get(APIURL, fmt.Sprintf("/%s/%d.json", board, page + 1), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	threads, err := ParseIndex(resp.Body, board)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	for _, t := range threads {
 		t.date_recieved = now
@@ -254,9 +258,10 @@ func GetThreads(board string) ([][]int64, error) {
 	}
 	n := make([][]int64, len(p))
 	for _, page := range p {
-		n[page.Page] = make([]int64, len(page.Threads))
+		// Pages are 1 based in the json api
+		n[page.Page-1] = make([]int64, len(page.Threads))
 		for j, thread := range page.Threads {
-			n[page.Page][j] = thread.No
+			n[page.Page-1][j] = thread.No
 		}
 	}
 	return n, nil
