@@ -4,7 +4,7 @@ A 4chan API client for Go.
 
 Supports:
 
-- API revision 34 (2014-04-12)
+- API revision [830712e on Apr 27 2018](https://github.com/4chan/4chan-API)
 	* Single thread
 	* Thread index
 	* Board list
