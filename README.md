@@ -19,7 +19,6 @@ Pull requests welcome.
 
 #### To do
 
-- Test the 1 second request cooldown
 - More useful `Thread` and `*Post` methods
 - Update & add more tests
 - ...

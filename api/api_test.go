@@ -32,7 +32,7 @@ func TestParseThread(t *testing.T) {
 	imageURL := thread.OP.ImageURL()
 	assert(t, imageURL == "http://i.4cdn.org/ck/1346968817055.jpg", "Image URL should be 'http://i.4cdn.org/ck/1346968817055.jpg' (got '"+imageURL+"')")
 	thumbURL := thread.OP.ThumbURL()
-	assert(t, thumbURL == "http://t.4cdn.org/ck/1346968817055s.jpg", "Thumb URL should be 'http://t.4cdn.org/ck/1346968817055s.jpg' (got '"+thumbURL+"')")
+	assert(t, thumbURL == "http://i.4cdn.org/ck/1346968817055s.jpg", "Thumb URL should be 'http://i.4cdn.org/ck/1346968817055s.jpg' (got '"+thumbURL+"')")
 }
 
 func TestGetIndex(t *testing.T) {

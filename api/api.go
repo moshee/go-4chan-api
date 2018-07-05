@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	pathpkg "path"
+	"sync"
 	"time"
 )
 
@@ -18,12 +19,12 @@ var (
 	// before being used.
 	UpdateCooldown time.Duration = 15 * time.Second
 	cooldown       <-chan time.Time
+	cooldownMutex  sync.Mutex
 )
 
 const (
 	APIURL    = "a.4cdn.org"
 	ImageURL  = "i.4cdn.org"
-	ThumbURL  = "t.4cdn.org"
 	StaticURL = "s.4cdn.org"
 )
 
@@ -37,6 +38,7 @@ func prefix() string {
 
 func get(base, path string, modify func(*http.Request) error) (*http.Response, error) {
 	url := prefix() + pathpkg.Join(base, path)
+	cooldownMutex.Lock()
 	if cooldown != nil {
 		<-cooldown
 	}
@@ -53,6 +55,7 @@ func get(base, path string, modify func(*http.Request) error) (*http.Response, e
 
 	resp, err := http.DefaultClient.Do(req)
 	cooldown = time.After(1 * time.Second)
+	cooldownMutex.Unlock()
 	return resp, err
 }
 
@@ -174,7 +177,7 @@ func (self *Post) ThumbURL() string {
 		return ""
 	}
 	return fmt.Sprintf("%s%s/%s/%ds%s",
-		prefix(), ThumbURL, self.Thread.Board, file.Id, file.Ext)
+		prefix(), ImageURL, self.Thread.Board, file.Id, ".jpg")
 }
 
 // A File represents an uploaded file's metadata.
@@ -223,13 +226,17 @@ type Thread struct {
 // GetIndex hits the API for an index of thread stubs from the given board and
 // page.
 func GetIndex(board string, page int) ([]*Thread, error) {
-	resp, err := get(APIURL, fmt.Sprintf("/%s/%d.json", board, page), nil)
+	resp, err := get(APIURL, fmt.Sprintf("/%s/%d.json", board, page + 1), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	threads, err := ParseIndex(resp.Body, board)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	for _, t := range threads {
 		t.date_recieved = now
@@ -251,9 +258,10 @@ func GetThreads(board string) ([][]int64, error) {
 	}
 	n := make([][]int64, len(p))
 	for _, page := range p {
-		n[page.Page] = make([]int64, len(page.Threads))
+		// Pages are 1 based in the json api
+		n[page.Page-1] = make([]int64, len(page.Threads))
 		for j, thread := range page.Threads {
-			n[page.Page][j] = thread.No
+			n[page.Page-1][j] = thread.No
 		}
 	}
 	return n, nil
@@ -390,6 +398,7 @@ func json_to_native(v *jsonPost, thread *Thread) *Post {
 
 // Update an existing thread in-place.
 func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
+	cooldownMutex.Lock()
 	if self.cooldown != nil {
 		<-self.cooldown
 	}
@@ -399,6 +408,7 @@ func (self *Thread) Update() (new_posts, deleted_posts int, err error) {
 		UpdateCooldown = 10 * time.Second
 	}
 	self.cooldown = time.After(UpdateCooldown)
+	cooldownMutex.Unlock()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -538,7 +548,7 @@ func GetCatalog(board string) (Catalog, error) {
 		return nil, fmt.Errorf("api: GetCatalog: No board name given")
 	}
 	var c catalog
-	err := getDecode(APIURL, fmt.Sprintf("/%s/catalog.json", board), c, nil)
+	err := getDecode(APIURL, fmt.Sprintf("/%s/catalog.json", board), &c, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -554,6 +564,9 @@ func GetCatalog(board string) (Catalog, error) {
 			post := json_to_native(post, thread)
 			thread.Posts[0] = post
 			extracted.Threads[j] = thread
+			if thread.OP == nil {
+				thread.OP = thread.Posts[0]
+			}
 		}
 		cat[i] = extracted
 	}
